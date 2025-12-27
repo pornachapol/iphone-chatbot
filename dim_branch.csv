@@ -1,0 +1,7 @@
+branch_id,branch_code,branch_name,branch_type,province,is_active
+BR000,WHQ,คลังสำนักงานใหญ่,WAREHOUSE,กรุงเทพฯ,True
+BR001,BKK,กรุงเทพ,SHOP,กรุงเทพฯ,True
+BR002,HDY,หาดใหญ่,SHOP,สงขลา,True
+BR003,CNX,เชียงใหม่,SHOP,เชียงใหม่,True
+BR004,NAK,นครราชสีมา,SHOP,นครราชสีมา,True
+BR005,CHB,ชลบุรี,SHOP,ชลบุรี,True

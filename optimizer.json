@@ -1,0 +1,880 @@
+{
+  "version": "1.0",
+  "created_at": "2025-12-27T14:14:29.976368",
+  "description": "DSPy optimizer for iPhone Demand-Supply SQL generation",
+  "schema": {
+    "database": "iphone_demand_supply",
+    "generated_at": "2025-12-27T14:14:29.940150",
+    "description": "Auto-generated schema from database",
+    "tables": {
+      "dim_branch": {
+        "type": "dimension",
+        "row_count": 6,
+        "columns": {
+          "branch_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "BR000"
+          },
+          "branch_code": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "WHQ"
+          },
+          "branch_name": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "คลังสำนักงานใหญ่"
+          },
+          "branch_type": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "WAREHOUSE"
+          },
+          "province": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "กรุงเทพฯ"
+          },
+          "is_active": {
+            "type": "BOOLEAN",
+            "nullable": true,
+            "example": "True"
+          }
+        }
+      },
+      "dim_date": {
+        "type": "dimension",
+        "row_count": 122,
+        "columns": {
+          "date_key": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "20250901"
+          },
+          "date": {
+            "type": "DATE",
+            "nullable": true,
+            "example": "2025-09-01 00:00:00"
+          },
+          "year": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "2025"
+          },
+          "month": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "9"
+          },
+          "day": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "1"
+          },
+          "is_month_start": {
+            "type": "BOOLEAN",
+            "nullable": true,
+            "example": "True"
+          }
+        }
+      },
+      "dim_product": {
+        "type": "dimension",
+        "row_count": 18,
+        "columns": {
+          "product_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "SKU015128BL"
+          },
+          "model_name": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "iPhone 15"
+          },
+          "generation": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "15"
+          },
+          "storage_gb": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "128"
+          },
+          "color": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "Blue"
+          },
+          "base_price": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "25000"
+          },
+          "is_active": {
+            "type": "BOOLEAN",
+            "nullable": true,
+            "example": "True"
+          }
+        }
+      },
+      "fact_contract": {
+        "type": "fact",
+        "row_count": 6473,
+        "columns": {
+          "date_key": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "20250902"
+          },
+          "branch_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "BR001"
+          },
+          "product_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "SKU015256BL"
+          },
+          "contract_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "CON-20250902-BR001-SKU015256BL"
+          },
+          "contract_count": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "2"
+          },
+          "contract_value": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "58000"
+          },
+          "approved_flag": {
+            "type": "BOOLEAN",
+            "nullable": true,
+            "example": "True"
+          }
+        }
+      },
+      "fact_inventory": {
+        "type": "fact",
+        "row_count": 13176,
+        "columns": {
+          "inventory_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "STK-20250901-BR000-SKU015128BL"
+          },
+          "date_key": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "20250901"
+          },
+          "branch_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "BR000"
+          },
+          "product_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "SKU015128BL"
+          },
+          "stock_qty": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "644"
+          },
+          "reserved_qty": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "0"
+          },
+          "available_qty": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "644"
+          }
+        }
+      },
+      "fact_registration": {
+        "type": "fact",
+        "row_count": 10980,
+        "columns": {
+          "registration_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "REG-20250901-BR001-SKU015128BL"
+          },
+          "date_key": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "20250901"
+          },
+          "branch_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "BR001"
+          },
+          "product_id": {
+            "type": "VARCHAR",
+            "nullable": true,
+            "example": "SKU015128BL"
+          },
+          "reg_count": {
+            "type": "BIGINT",
+            "nullable": true,
+            "example": "1"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": 1,
+      "category": "demand",
+      "question": "มีลูกค้าลงทะเบียนรอซื้อกี่คนวันนี้",
+      "sql": "SELECT SUM(reg_count) as total_registrations\nFROM fact_registration\nWHERE date_key = 20251227",
+      "explanation": "นับจำนวนการลงทะเบียนทั้งหมดในวันนี้ (20251227)",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_registration"
+      ],
+      "key_patterns": [
+        "SUM aggregation",
+        "date filter",
+        "current date"
+      ]
+    },
+    {
+      "id": 2,
+      "category": "demand",
+      "question": "iPhone 17 256GB สีน้ำเงิน มีคนลงทะเบียนกี่คนเดือนนี้",
+      "sql": "SELECT SUM(r.reg_count) as total_registrations\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nWHERE p.model_name = 'iPhone 17'\n  AND p.storage_gb = 256\n  AND p.color = 'Blue'\n  AND r.date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "นับการลงทะเบียน iPhone 17 256GB สีน้ำเงิน ในเดือนธันวาคม 2025",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_registration",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "JOIN",
+        "multiple filters",
+        "product attributes",
+        "month range"
+      ]
+    },
+    {
+      "id": 3,
+      "category": "demand",
+      "question": "สาขาไหนมีคนลงทะเบียนเยอะสุดเดือนนี้",
+      "sql": "SELECT \n  b.branch_name,\n  SUM(r.reg_count) as total_registrations\nFROM fact_registration r\nJOIN dim_branch b ON r.branch_id = b.branch_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY b.branch_name\nORDER BY total_registrations DESC\nLIMIT 1",
+      "explanation": "หาสาขาที่มีการลงทะเบียนสูงสุดในเดือนธันวาคม โดยเรียงจากมากไปน้อยและเอาแค่อันดับ 1",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_registration",
+        "dim_branch"
+      ],
+      "key_patterns": [
+        "GROUP BY",
+        "ORDER BY DESC",
+        "LIMIT 1",
+        "superlative (สุด)"
+      ]
+    },
+    {
+      "id": 4,
+      "category": "demand",
+      "question": "แนวโน้มการลงทะเบียน 7 วันล่าสุด",
+      "sql": "SELECT \n  d.date,\n  SUM(r.reg_count) as daily_registrations\nFROM fact_registration r\nJOIN dim_date d ON r.date_key = d.date_key\nWHERE r.date_key >= 20251220\nGROUP BY d.date\nORDER BY d.date",
+      "explanation": "แสดงจำนวนการลงทะเบียนรายวันย้อนหลัง 7 วัน เรียงตามวันที่",
+      "result_type": "time_series",
+      "tables_used": [
+        "fact_registration",
+        "dim_date"
+      ],
+      "key_patterns": [
+        "time series",
+        "date range",
+        "GROUP BY date",
+        "trend analysis"
+      ]
+    },
+    {
+      "id": 5,
+      "category": "supply",
+      "question": "สต็อค iPhone 16 เหลือเท่าไหร่ทั้งหมดวันนี้",
+      "sql": "SELECT SUM(i.stock_qty) as total_stock\nFROM fact_inventory i\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\n  AND p.model_name = 'iPhone 16'",
+      "explanation": "รวมสต็อค iPhone 16 ทุก SKU ทุกสาขา ณ วันที่ 27 ธันวาคม 2025",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_inventory",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "SUM stock",
+        "latest date",
+        "product filter"
+      ]
+    },
+    {
+      "id": 6,
+      "category": "supply",
+      "question": "สาขาไหนมีสต็อคเหลือน้อยกว่า 10 เครื่อง",
+      "sql": "SELECT \n  b.branch_name,\n  p.model_name,\n  i.available_qty\nFROM fact_inventory i\nJOIN dim_branch b ON i.branch_id = b.branch_id\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\n  AND b.branch_type = 'SHOP'\n  AND i.available_qty < 10\nORDER BY i.available_qty",
+      "explanation": "หาสาขาที่มี available_qty น้อยกว่า 10 (สต็อคต่ำ) เฉพาะร้านค้า ไม่รวมคลัง",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_inventory",
+        "dim_branch",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "threshold filter",
+        "SHOP only",
+        "low stock alert"
+      ]
+    },
+    {
+      "id": 7,
+      "category": "supply",
+      "question": "คลังกลางมีสต็อคเท่าไหร่",
+      "sql": "SELECT SUM(stock_qty) as warehouse_stock\nFROM fact_inventory\nWHERE date_key = 20251227\n  AND branch_id = 'BR000'",
+      "explanation": "รวมสต็อคทั้งหมดที่คลังกลาง (BR000) ณ วันที่ล่าสุด",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "warehouse filter",
+        "branch_id = BR000"
+      ]
+    },
+    {
+      "id": 8,
+      "category": "supply",
+      "question": "สต็อคพร้อมขายจริงๆ เหลือเท่าไหร่",
+      "sql": "SELECT SUM(available_qty) as total_available\nFROM fact_inventory\nWHERE date_key = 20251227\n  AND branch_id != 'BR000'",
+      "explanation": "รวม available_qty ของทุกสาขา (ไม่รวมคลัง) = สต็อคที่พร้อมขายให้ลูกค้าใหม่",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "available_qty",
+        "exclude warehouse",
+        "shops only"
+      ]
+    },
+    {
+      "id": 9,
+      "category": "contracts",
+      "question": "ทำสัญญาได้กี่ฉบับเดือนนี้",
+      "sql": "SELECT SUM(contract_count) as total_contracts\nFROM fact_contract\nWHERE date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "นับจำนวนสัญญาทั้งหมดในเดือนธันวาคม 2025",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "SUM contracts",
+        "month range"
+      ]
+    },
+    {
+      "id": 10,
+      "category": "contracts",
+      "question": "รายได้เดือนนี้เท่าไหร่",
+      "sql": "SELECT SUM(contract_value) as total_revenue\nFROM fact_contract\nWHERE date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "รวมมูลค่าสัญญาทั้งหมด (contract_value) ในเดือนธันวาคม",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "SUM revenue",
+        "contract_value",
+        "month range"
+      ]
+    },
+    {
+      "id": 11,
+      "category": "contracts",
+      "question": "สาขากรุงเทพทำสัญญาได้กี่ฉบับ",
+      "sql": "SELECT SUM(c.contract_count) as total_contracts\nFROM fact_contract c\nJOIN dim_branch b ON c.branch_id = b.branch_id\nWHERE b.branch_name = 'กรุงเทพ'\n  AND c.date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "นับสัญญาที่สาขากรุงเทพ (branch_name) ในเดือนนี้",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_contract",
+        "dim_branch"
+      ],
+      "key_patterns": [
+        "branch filter",
+        "Thai branch name"
+      ]
+    },
+    {
+      "id": 12,
+      "category": "contracts",
+      "question": "iPhone รุ่นไหนขายดีสุด",
+      "sql": "SELECT \n  p.model_name,\n  SUM(c.contract_count) as units_sold,\n  SUM(c.contract_value) as revenue\nFROM fact_contract c\nJOIN dim_product p ON c.product_id = p.product_id\nWHERE c.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name\nORDER BY units_sold DESC\nLIMIT 1",
+      "explanation": "หารุ่น iPhone ที่ขายได้มากที่สุด (จำนวนเครื่อง) เดือนนี้",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_contract",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "best seller",
+        "GROUP BY model",
+        "ORDER BY DESC"
+      ]
+    },
+    {
+      "id": 13,
+      "category": "demand_supply_analysis",
+      "question": "Conversion rate เท่าไหร่",
+      "sql": "SELECT \n  (SUM(c.contract_count) * 100.0 / NULLIF(SUM(r.reg_count), 0)) as conversion_rate\nFROM fact_registration r\nLEFT JOIN fact_contract c ON r.product_id = c.product_id AND r.branch_id = c.branch_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "คำนวณ conversion rate = (สัญญา / ลงทะเบียน) × 100 ในเดือนนี้",
+      "result_type": "percentage",
+      "tables_used": [
+        "fact_registration",
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "conversion calculation",
+        "LEFT JOIN",
+        "NULLIF",
+        "percentage"
+      ]
+    },
+    {
+      "id": 14,
+      "category": "demand_supply_analysis",
+      "question": "iPhone 17 สีดำ มีคนรอกี่คน แต่สต็อคเหลือเท่าไหร่",
+      "sql": "SELECT \n  SUM(i.reserved_qty) as waiting_customers,\n  SUM(i.available_qty) as available_stock,\n  (SUM(i.reserved_qty) - SUM(i.available_qty)) as gap\nFROM fact_inventory i\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\n  AND i.branch_id != 'BR000'\n  AND p.model_name = 'iPhone 17'\n  AND p.color = 'Blue'",
+      "explanation": "เทียบ reserved_qty (คนรอ) กับ available_qty (สต็อคพร้อมขาย) สำหรับ iPhone 17 สีดำ",
+      "result_type": "comparison",
+      "tables_used": [
+        "fact_inventory",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "demand vs supply",
+        "reserved vs available",
+        "gap calculation"
+      ]
+    },
+    {
+      "id": 15,
+      "category": "demand_supply_analysis",
+      "question": "รุ่นไหนที่มีคนรอเยอะแต่สต็อคไม่พอ",
+      "sql": "SELECT \n  p.model_name,\n  SUM(i.reserved_qty) as demand,\n  SUM(i.available_qty) as supply,\n  (SUM(i.reserved_qty) - SUM(i.available_qty)) as shortage\nFROM fact_inventory i\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\n  AND i.branch_id != 'BR000'\nGROUP BY p.model_name\nHAVING SUM(i.reserved_qty) > SUM(i.available_qty)\nORDER BY shortage DESC",
+      "explanation": "หารุ่นที่ demand (reserved) มากกว่า supply (available) = ขาดสต็อค",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_inventory",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "HAVING clause",
+        "shortage detection",
+        "demand > supply"
+      ]
+    },
+    {
+      "id": 16,
+      "category": "demand_supply_analysis",
+      "question": "สาขาไหนต้องเติมสต็อคด่วน",
+      "sql": "SELECT \n  b.branch_name,\n  p.model_name,\n  i.available_qty,\n  i.reserved_qty\nFROM fact_inventory i\nJOIN dim_branch b ON i.branch_id = b.branch_id\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\n  AND b.branch_type = 'SHOP'\n  AND (i.available_qty < 5 OR i.reserved_qty > i.available_qty)\nORDER BY i.available_qty",
+      "explanation": "หาสาขาที่สต็อคต่ำมาก (<5) หรือคนรอมากกว่าสต็อค = ต้องเติมด่วน",
+      "result_type": "alert_list",
+      "tables_used": [
+        "fact_inventory",
+        "dim_branch",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "OR condition",
+        "low stock",
+        "urgent restock"
+      ]
+    },
+    {
+      "id": 17,
+      "category": "performance",
+      "question": "เปรียบเทียบยอดขายเดือนนี้กับเดือนที่แล้ว",
+      "sql": "SELECT \n  'This Month' as period,\n  SUM(contract_count) as units,\n  SUM(contract_value) as revenue\nFROM fact_contract\nWHERE date_key BETWEEN 20251201 AND 20251231\nUNION ALL\nSELECT \n  'Last Month' as period,\n  SUM(contract_count) as units,\n  SUM(contract_value) as revenue\nFROM fact_contract\nWHERE date_key BETWEEN 20251101 AND 20251130",
+      "explanation": "เปรียบเทียบยอดขายระหว่าง ธ.ค. (เดือนนี้) กับ พ.ย. (เดือนที่แล้ว) ด้วย UNION ALL",
+      "result_type": "comparison",
+      "tables_used": [
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "UNION ALL",
+        "month comparison",
+        "MoM"
+      ]
+    },
+    {
+      "id": 18,
+      "category": "performance",
+      "question": "สาขาไหน conversion rate สูงสุด",
+      "sql": "SELECT \n  b.branch_name,\n  SUM(c.contract_count) as contracts,\n  SUM(r.reg_count) as registrations,\n  (SUM(c.contract_count) * 100.0 / NULLIF(SUM(r.reg_count), 0)) as conversion_rate\nFROM fact_registration r\nJOIN dim_branch b ON r.branch_id = b.branch_id\nLEFT JOIN fact_contract c ON r.branch_id = c.branch_id AND r.product_id = c.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY b.branch_name\nORDER BY conversion_rate DESC\nLIMIT 1",
+      "explanation": "หาสาขาที่มี conversion rate สูงสุด โดยคำนวณจาก contracts/registrations",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_registration",
+        "fact_contract",
+        "dim_branch"
+      ],
+      "key_patterns": [
+        "conversion by branch",
+        "best performer"
+      ]
+    },
+    {
+      "id": 19,
+      "category": "performance",
+      "question": "จัดอันดับสาขาตามยอดขาย",
+      "sql": "SELECT \n  b.branch_name,\n  SUM(c.contract_count) as units_sold,\n  SUM(c.contract_value) as revenue,\n  RANK() OVER (ORDER BY SUM(c.contract_value) DESC) as rank\nFROM fact_contract c\nJOIN dim_branch b ON c.branch_id = b.branch_id\nWHERE c.date_key BETWEEN 20251201 AND 20251231\nGROUP BY b.branch_name\nORDER BY revenue DESC",
+      "explanation": "จัดอันดับสาขาตามรายได้ โดยใช้ window function RANK()",
+      "result_type": "ranked_list",
+      "tables_used": [
+        "fact_contract",
+        "dim_branch"
+      ],
+      "key_patterns": [
+        "RANK() OVER",
+        "window function",
+        "ranking"
+      ]
+    },
+    {
+      "id": 20,
+      "category": "performance",
+      "question": "รายได้เฉลี่ยต่อวัน",
+      "sql": "SELECT AVG(daily_revenue) as avg_daily_revenue\nFROM (\n  SELECT \n    date_key,\n    SUM(contract_value) as daily_revenue\n  FROM fact_contract\n  WHERE date_key BETWEEN 20251201 AND 20251231\n  GROUP BY date_key\n) subquery",
+      "explanation": "คำนวณรายได้เฉลี่ยต่อวันในเดือนนี้ โดยใช้ subquery",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "AVG",
+        "subquery",
+        "daily average"
+      ]
+    },
+    {
+      "id": 21,
+      "category": "demand",
+      "question": "iPhone รุ่นล่าสุดมีคนสนใจกี่คน",
+      "sql": "SELECT SUM(r.reg_count) as total_interest\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nWHERE p.generation = 17\n  AND r.date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "นับลูกค้าที่สนใจ iPhone รุ่นล่าสุด (generation 17) ในเดือนนี้",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_registration",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "latest generation",
+        "generation filter"
+      ]
+    },
+    {
+      "id": 22,
+      "category": "supply",
+      "question": "สต็อครวมทั้งหมด ทั้งคลังและสาขา",
+      "sql": "SELECT \n  CASE \n    WHEN branch_id = 'BR000' THEN 'Warehouse'\n    ELSE 'Shops'\n  END as location_type,\n  SUM(stock_qty) as total_stock\nFROM fact_inventory\nWHERE date_key = 20251227\nGROUP BY location_type",
+      "explanation": "แบ่งสต็อคเป็น 2 กลุ่ม: คลัง vs สาขา โดยใช้ CASE WHEN",
+      "result_type": "grouped_summary",
+      "tables_used": [
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "CASE WHEN",
+        "warehouse vs shops",
+        "grouping"
+      ]
+    },
+    {
+      "id": 23,
+      "category": "contracts",
+      "question": "สินค้าไหนมีรายได้สูงสุด",
+      "sql": "SELECT \n  p.model_name,\n  p.storage_gb,\n  p.color,\n  SUM(c.contract_value) as total_revenue\nFROM fact_contract c\nJOIN dim_product p ON c.product_id = p.product_id\nWHERE c.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name, p.storage_gb, p.color\nORDER BY total_revenue DESC\nLIMIT 1",
+      "explanation": "หา SKU ที่มีรายได้สูงสุด รวมถึง model, storage, color",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_contract",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "highest revenue",
+        "GROUP BY multiple",
+        "SKU level"
+      ]
+    },
+    {
+      "id": 24,
+      "category": "demand_supply_analysis",
+      "question": "มีสินค้าอะไรบ้างที่สต็อคหมดแล้ว",
+      "sql": "SELECT \n  b.branch_name,\n  p.model_name,\n  p.color,\n  i.stock_qty,\n  i.reserved_qty\nFROM fact_inventory i\nJOIN dim_branch b ON i.branch_id = b.branch_id\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\n  AND b.branch_type = 'SHOP'\n  AND i.stock_qty = 0",
+      "explanation": "หาสินค้าที่สต็อคหมด (stock_qty = 0) ที่สาขาต่างๆ",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_inventory",
+        "dim_branch",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "out of stock",
+        "zero stock"
+      ]
+    },
+    {
+      "id": 25,
+      "category": "performance",
+      "question": "ยอดขายสะสมตั้งแต่ต้นเดือน",
+      "sql": "SELECT \n  d.date,\n  SUM(c.contract_value) as daily_revenue,\n  SUM(SUM(c.contract_value)) OVER (ORDER BY d.date) as cumulative_revenue\nFROM fact_contract c\nJOIN dim_date d ON c.date_key = d.date_key\nWHERE c.date_key BETWEEN 20251201 AND 20251227\nGROUP BY d.date\nORDER BY d.date",
+      "explanation": "แสดงรายได้รายวันและรายได้สะสมตั้งแต่ต้นเดือน ใช้ window function SUM() OVER",
+      "result_type": "time_series",
+      "tables_used": [
+        "fact_contract",
+        "dim_date"
+      ],
+      "key_patterns": [
+        "cumulative sum",
+        "SUM() OVER",
+        "running total"
+      ]
+    },
+    {
+      "id": 26,
+      "category": "demand",
+      "question": "สีไหนได้รับความนิยมมากที่สุด",
+      "sql": "SELECT \n  p.color,\n  SUM(r.reg_count) as total_registrations\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.color\nORDER BY total_registrations DESC\nLIMIT 1",
+      "explanation": "หาสีที่มีคนลงทะเบียนมากที่สุดในเดือนนี้",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_registration",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "color popularity",
+        "GROUP BY color"
+      ]
+    },
+    {
+      "id": 27,
+      "category": "supply",
+      "question": "ความจุไหนมีสต็อคเหลือมากที่สุด",
+      "sql": "SELECT \n  p.storage_gb,\n  SUM(i.stock_qty) as total_stock\nFROM fact_inventory i\nJOIN dim_product p ON i.product_id = p.product_id\nWHERE i.date_key = 20251227\nGROUP BY p.storage_gb\nORDER BY total_stock DESC",
+      "explanation": "เปรียบเทียบสต็อครวมระหว่าง 128GB vs 256GB",
+      "result_type": "grouped_summary",
+      "tables_used": [
+        "fact_inventory",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "storage comparison",
+        "GROUP BY storage"
+      ]
+    },
+    {
+      "id": 28,
+      "category": "contracts",
+      "question": "รายได้เฉลี่ยต่อสัญญา",
+      "sql": "SELECT AVG(contract_value) as avg_contract_value\nFROM fact_contract\nWHERE date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "คำนวณมูลค่าสัญญาเฉลี่ยในเดือนนี้",
+      "result_type": "single_number",
+      "tables_used": [
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "AVG",
+        "average value"
+      ]
+    },
+    {
+      "id": 29,
+      "category": "demand_supply_analysis",
+      "question": "ภาพรวม demand supply contract วันนี้",
+      "sql": "SELECT \n  'Demand' as metric,\n  SUM(reg_count) as value\nFROM fact_registration\nWHERE date_key = 20251227\nUNION ALL\nSELECT \n  'Supply (Available)',\n  SUM(available_qty)\nFROM fact_inventory\nWHERE date_key = 20251227 AND branch_id != 'BR000'\nUNION ALL\nSELECT \n  'Contracts',\n  SUM(contract_count)\nFROM fact_contract\nWHERE date_key = 20251227",
+      "explanation": "สรุปภาพรวมทั้ง 3 ด้าน: demand (ลงทะเบียน), supply (สต็อคพร้อมขาย), contracts (ขายจริง)",
+      "result_type": "dashboard_summary",
+      "tables_used": [
+        "fact_registration",
+        "fact_inventory",
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "UNION ALL",
+        "multi-metric dashboard",
+        "overview"
+      ]
+    },
+    {
+      "id": 30,
+      "category": "performance",
+      "question": "สาขาไหนมียอดขายต่ำสุดที่ต้องช่วยเหลือ",
+      "sql": "SELECT \n  b.branch_name,\n  SUM(c.contract_count) as units_sold,\n  SUM(c.contract_value) as revenue\nFROM fact_contract c\nJOIN dim_branch b ON c.branch_id = b.branch_id\nWHERE c.date_key BETWEEN 20251201 AND 20251231\nGROUP BY b.branch_name\nORDER BY units_sold ASC\nLIMIT 1",
+      "explanation": "หาสาขาที่ขายได้น้อยที่สุด (อาจต้องการการสนับสนุน)",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_contract",
+        "dim_branch"
+      ],
+      "key_patterns": [
+        "lowest performance",
+        "ORDER BY ASC",
+        "underperformer"
+      ]
+    }
+  ],
+  "patterns": {
+    "aggregations": [
+      {
+        "function": "SUM",
+        "usage": "Total calculation"
+      },
+      {
+        "function": "AVG",
+        "usage": "Average calculation"
+      }
+    ],
+    "filters": [],
+    "joins": [
+      {
+        "type": "JOIN",
+        "example": "iPhone 17 256GB สีน้ำเงิน มีคนลงทะเบียนกี่คนเดือนน"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขาไหนมีคนลงทะเบียนเยอะสุดเดือนนี้"
+      },
+      {
+        "type": "JOIN",
+        "example": "แนวโน้มการลงทะเบียน 7 วันล่าสุด"
+      },
+      {
+        "type": "JOIN",
+        "example": "สต็อค iPhone 16 เหลือเท่าไหร่ทั้งหมดวันนี้"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขาไหนมีสต็อคเหลือน้อยกว่า 10 เครื่อง"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขากรุงเทพทำสัญญาได้กี่ฉบับ"
+      },
+      {
+        "type": "JOIN",
+        "example": "iPhone รุ่นไหนขายดีสุด"
+      },
+      {
+        "type": "JOIN",
+        "example": "Conversion rate เท่าไหร่"
+      },
+      {
+        "type": "JOIN",
+        "example": "iPhone 17 สีดำ มีคนรอกี่คน แต่สต็อคเหลือเท่าไหร่"
+      },
+      {
+        "type": "JOIN",
+        "example": "รุ่นไหนที่มีคนรอเยอะแต่สต็อคไม่พอ"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขาไหนต้องเติมสต็อคด่วน"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขาไหน conversion rate สูงสุด"
+      },
+      {
+        "type": "JOIN",
+        "example": "จัดอันดับสาขาตามยอดขาย"
+      },
+      {
+        "type": "JOIN",
+        "example": "iPhone รุ่นล่าสุดมีคนสนใจกี่คน"
+      },
+      {
+        "type": "JOIN",
+        "example": "สินค้าไหนมีรายได้สูงสุด"
+      },
+      {
+        "type": "JOIN",
+        "example": "มีสินค้าอะไรบ้างที่สต็อคหมดแล้ว"
+      },
+      {
+        "type": "JOIN",
+        "example": "ยอดขายสะสมตั้งแต่ต้นเดือน"
+      },
+      {
+        "type": "JOIN",
+        "example": "สีไหนได้รับความนิยมมากที่สุด"
+      },
+      {
+        "type": "JOIN",
+        "example": "ความจุไหนมีสต็อคเหลือมากที่สุด"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขาไหนมียอดขายต่ำสุดที่ต้องช่วยเหลือ"
+      }
+    ],
+    "window_functions": [
+      {
+        "type": "WINDOW",
+        "example": "จัดอันดับสาขาตามยอดขาย"
+      },
+      {
+        "type": "WINDOW",
+        "example": "ยอดขายสะสมตั้งแต่ต้นเดือน"
+      }
+    ],
+    "common_columns": {}
+  },
+  "business_glossary": {
+    "demand": "fact_registration (ความต้องการ)",
+    "supply": "fact_inventory (สต็อค)",
+    "actual_sales": "fact_contract (สัญญา)",
+    "conversion_rate": "(contracts / registrations) × 100",
+    "reserved_qty": "SUM(registrations) - SUM(contracts)",
+    "available_qty": "stock_qty - reserved_qty",
+    "warehouse": "branch_id = 'BR000'",
+    "shops": "branch_id != 'BR000'"
+  },
+  "default_assumptions": {
+    "time_period": "If not specified, use current month for registrations/contracts, latest date for inventory",
+    "branch_scope": "Include all active branches unless specified",
+    "product_scope": "All active products unless specified"
+  },
+  "common_questions": {
+    "latest_date": "Use: WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory)",
+    "current_month": "Use: WHERE date_key BETWEEN YYYYMM01 AND YYYYMM31",
+    "shops_only": "Use: WHERE branch_id != 'BR000'",
+    "warehouse_only": "Use: WHERE branch_id = 'BR000'"
+  },
+  "metadata": {
+    "total_examples": 30,
+    "valid_examples": 30,
+    "failed_examples": 0,
+    "categories": {
+      "demand": 6,
+      "supply": 6,
+      "contracts": 6,
+      "demand_supply_analysis": 6,
+      "performance": 6
+    }
+  }
+}
