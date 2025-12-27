@@ -103,7 +103,7 @@ async def startup_event():
         print("   Please set it: export GEMINI_API_KEY=your_key")
     else:
         genai.configure(api_key=gemini_api_key)
-        gemini_model = genai.GenerativeModel('gemini-pro')
+        gemini_model = genai.GenerativeModel('gemini-2.5-flash')
         print("✅ Gemini configured")
     
     print("✅ Server ready!")
