@@ -176,12 +176,114 @@ def validate_sql(sql: str) -> tuple[bool, str]:
     
     return True, ""
 
+def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 15) -> list:
+    """
+    Find most relevant SQL examples based on the question
+    """
+    question_lower = question.lower()
+    all_examples = optimizer['examples']
+    
+    # Keyword mapping for different query types
+    keywords_map = {
+        'demand_high_stock_low': ['demand', 'stock', 'สูง', 'ต่ำ', 'gap', 'ช่องว่าง', 'ไม่พอ'],
+        'branch_analysis': ['สาขา', 'branch', 'ร้าน', 'shop'],
+        'model_analysis': ['รุ่น', 'model', 'iphone'],
+        'registration': ['ลงทะเบียน', 'registration', 'รอ', 'waiting'],
+        'stock_supply': ['สต็อค', 'stock', 'supply', 'inventory', 'คงเหลือ'],
+        'contract': ['สัญญา', 'contract', 'ทำสัญญา'],
+        'ratio': ['ratio', 'อัตราส่วน', 'เปรียบเทียบ'],
+        'conversion': ['conversion', 'แปลง', '→'],
+        'lost_sales': ['lost', 'สูญเสีย', 'หาย', 'shortage'],
+        'efficiency': ['ประสิทธิภาพ', 'efficiency', 'matching', 'จับคู่'],
+        'top_performer': ['มากที่สุด', 'สูงสุด', 'most', 'highest', 'top'],
+        'shortage': ['ขาด', 'shortage', 'ไม่พอ', 'not enough'],
+    }
+    
+    # Score each example
+    scored_examples = []
+    
+    for ex in all_examples:
+        score = 0
+        ex_question = ex['question'].lower()
+        ex_category = ex.get('category', '')
+        ex_patterns = ' '.join(ex.get('key_patterns', [])).lower()
+        
+        # 1. Exact phrase match (highest score)
+        if question_lower in ex_question or ex_question in question_lower:
+            score += 100
+        
+        # 2. Word overlap (medium score)
+        question_words = set(question_lower.split())
+        ex_words = set(ex_question.split())
+        common_words = question_words & ex_words
+        score += len(common_words) * 10
+        
+        # 3. Keyword category match
+        for category, keywords in keywords_map.items():
+            question_has_keyword = any(kw in question_lower for kw in keywords)
+            example_has_keyword = any(kw in ex_question or kw in ex_patterns for kw in keywords)
+            
+            if question_has_keyword and example_has_keyword:
+                score += 30
+        
+        # 4. Category bonus for demand_supply_analysis
+        if 'demand_supply_analysis' in ex_category:
+            if any(kw in question_lower for kw in ['demand', 'stock', 'supply', 'สต็อค', 'ดีมานด์']):
+                score += 20
+        
+        # 5. Special patterns bonus
+        if 'gap' in question_lower or 'ช่องว่าง' in question_lower or 'ไม่พอ' in question_lower:
+            if 'gap analysis' in ex_patterns or 'shortage' in ex_patterns:
+                score += 50
+        
+        if 'พร้อมจำนวน' in question_lower or 'with value' in ex_patterns:
+            if 'TOP 1 with value' in ex_patterns or 'include COUNT in SELECT' in ex_patterns:
+                score += 40
+        
+        # 6. Bonus for newer examples (31-44) if they're cross-analysis
+        if ex['id'] >= 31 and score > 0:
+            score += 15
+        
+        scored_examples.append((score, ex))
+    
+    # Sort by score (descending)
+    scored_examples.sort(key=lambda x: x[0], reverse=True)
+    
+    # Get top examples
+    relevant_examples = [ex for score, ex in scored_examples if score > 0][:max_examples]
+    
+    # If we have less than 5 relevant examples, add some default cross-analysis ones
+    if len(relevant_examples) < 5:
+        # Add examples 31-40 (cross-analysis examples)
+        for ex in all_examples:
+            if ex['id'] >= 31 and ex not in relevant_examples:
+                relevant_examples.append(ex)
+                if len(relevant_examples) >= 10:
+                    break
+    
+    # If still not enough, add some basic examples
+    if len(relevant_examples) < 5:
+        for ex in all_examples[:10]:
+            if ex not in relevant_examples:
+                relevant_examples.append(ex)
+                if len(relevant_examples) >= 10:
+                    break
+    
+    return relevant_examples[:max_examples]
+
 def generate_sql_with_gemini(question: str, optimizer: dict) -> str:
     """
-    Generate SQL using Gemini with optimizer context
+    Generate SQL using Gemini with relevant examples
     """
     # Get current date (for default time filters)
     current_date = con.execute("SELECT MAX(date_key) FROM fact_inventory").fetchone()[0]
+    
+    # Find relevant examples
+    relevant_examples = find_relevant_examples(question, optimizer, max_examples=15)
+    
+    # Log which examples were selected (for debugging)
+    example_ids = [ex['id'] for ex in relevant_examples]
+    print(f"🔍 Selected examples for '{question}': {example_ids}")
     
     # Create prompt
     prompt = f"""You are an expert SQL query generator for a DuckDB database.
@@ -195,8 +297,8 @@ BUSINESS RULES:
 DEFAULT ASSUMPTIONS:
 {json.dumps(optimizer['default_assumptions'], indent=2, ensure_ascii=False)}
 
-EXAMPLE QUESTIONS AND SQL (Learn from these patterns):
-{json.dumps(optimizer['examples'][:10], indent=2, ensure_ascii=False)}
+RELEVANT EXAMPLE QUESTIONS AND SQL (FOLLOW THESE PATTERNS EXACTLY!):
+{json.dumps(relevant_examples, indent=2, ensure_ascii=False)}
 
 IMPORTANT NOTES:
 - Current latest date in database: {current_date}
@@ -207,13 +309,20 @@ IMPORTANT NOTES:
 - Only shops (BR001-BR005) have registrations and contracts
 - Warehouse (BR000) only appears in inventory
 
+CRITICAL INSTRUCTIONS:
+1. Find the MOST SIMILAR example above
+2. Use the EXACT same SQL pattern as that example
+3. Only change the specific filters/values needed for this question
+4. Do NOT invent new SQL patterns or structures
+5. If asking for "มากที่สุด" (most/highest), make sure to SELECT both the name AND the count/value
+
 USER QUESTION (in Thai):
 {question}
 
 Generate ONLY the SQL query. No explanation, no markdown, just the SQL.
 The SQL must be valid DuckDB syntax.
 """
-
+    
     try:
         response = gemini_model.generate_content(prompt)
         sql = clean_sql(response.text)
