@@ -1,10 +1,10 @@
 {
   "version": "1.0",
-  "created_at": "2025-12-28T09:54:56.897113",
+  "created_at": "2025-12-28T10:17:14.435636",
   "description": "DSPy optimizer for iPhone Demand-Supply SQL generation",
   "schema": {
     "database": "iphone_demand_supply",
-    "generated_at": "2025-12-28T09:54:56.868881",
+    "generated_at": "2025-12-28T10:17:14.398582",
     "description": "Auto-generated schema from database",
     "tables": {
       "dim_branch": {
@@ -760,26 +760,6 @@
       ]
     },
     {
-      "id": 32,
-      "category": "demand_supply_analysis",
-      "question": "Demand vs Supply Ratio รายรุ่น",
-      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as total_demand,\n  COALESCE(SUM(i.stock_qty), 0) as total_supply,\n  ROUND(CAST(SUM(r.reg_count) AS FLOAT) / NULLIF(SUM(i.stock_qty), 0), 2) as demand_supply_ratio\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN (\n  SELECT product_id, ROUND(AVG(stock_qty), 0) as stock_qty\n  FROM fact_inventory\n  WHERE date_key BETWEEN 20251201 AND 20251231\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name\nORDER BY demand_supply_ratio DESC NULLS LAST",
-      "explanation": "คำนวณอัตราส่วน demand ต่อ supply รายรุ่น ใช้ NULLIF เพื่อหลีกเลี่ยง division by zero CRITICAL: Uses AVG inventory over same period as registrations - inventory is snapshot not cumulative.",
-      "result_type": "multiple_rows",
-      "tables_used": [
-        "fact_registration",
-        "dim_product",
-        "fact_inventory"
-      ],
-      "key_patterns": [
-        "ratio calculation",
-        "CAST to FLOAT",
-        "NULLIF",
-        "division handling",
-        "AVG inventory over period"
-      ]
-    },
-    {
       "id": 33,
       "category": "demand_supply_analysis",
       "question": "สาขาใดมีลูกค้ารอเยอะแต่สต็อคไม่พอ",
@@ -993,6 +973,133 @@
         "demand-supply matching",
         "AVG inventory over period"
       ]
+    },
+    {
+      "id": 45,
+      "category": "demand_supply_analysis",
+      "question": "Stock Coverage รายรุ่น",
+      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(i.stock_qty, 0) as stock,\n  ROUND(CAST(COALESCE(i.stock_qty, 0) AS FLOAT) / NULLIF(SUM(r.reg_count), 0), 2) as stock_coverage_ratio\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN (\n  SELECT product_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name, i.stock_qty\nORDER BY stock_coverage_ratio ASC",
+      "explanation": "คำนวณ Stock Coverage = Stock / Demand เพื่อดูว่า stock รองรับ demand ได้กี่เท่า (ถ้า < 1.0 = stock ไม่พอ, ถ้า > 2.0 = stock เกิน)",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_product",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "stock coverage",
+        "inventory adequacy",
+        "stock/demand ratio"
+      ]
+    },
+    {
+      "id": 46,
+      "category": "demand_supply_analysis",
+      "question": "สาขาไหน Stock Coverage ต่ำ",
+      "sql": "SELECT \n  b.branch_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(i.stock_qty, 0) as stock,\n  ROUND(CAST(COALESCE(i.stock_qty, 0) AS FLOAT) / NULLIF(SUM(r.reg_count), 0), 2) as stock_coverage_ratio\nFROM fact_registration r\nJOIN dim_branch b ON r.branch_id = b.branch_id\nLEFT JOIN (\n  SELECT branch_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n  GROUP BY branch_id\n) i ON r.branch_id = i.branch_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\n  AND b.branch_id != 'BR000'\nGROUP BY b.branch_name, i.stock_qty\nHAVING stock_coverage_ratio < 1.0\nORDER BY stock_coverage_ratio ASC",
+      "explanation": "หาสาขาที่ Stock Coverage < 1.0 (stock ไม่พอรองรับ demand)",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_branch",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "branch analysis",
+        "low coverage",
+        "restock priority"
+      ]
+    },
+    {
+      "id": 47,
+      "category": "performance",
+      "question": "Lost Sales แยกตามสาเหตุ",
+      "sql": "WITH demand_supply AS (\n  SELECT \n    SUM(r.reg_count) as total_demand,\n    COALESCE(SUM(c.contract_count), 0) as total_contracts,\n    COALESCE(SUM(i.stock_qty), 0) as total_stock\n  FROM fact_registration r\n  LEFT JOIN fact_contract c ON r.product_id = c.product_id\n    AND r.branch_id = c.branch_id\n    AND c.date_key BETWEEN 20251201 AND 20251231\n  CROSS JOIN (\n    SELECT SUM(stock_qty) as stock_qty\n    FROM fact_inventory\n    WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n      AND branch_id != 'BR000'\n  ) i\n  WHERE r.date_key BETWEEN 20251201 AND 20251231\n)\nSELECT \n  total_demand,\n  total_contracts,\n  total_stock,\n  CASE \n    WHEN total_stock < total_demand \n    THEN total_demand - total_stock\n    ELSE 0\n  END as lost_from_stock,\n  (total_demand - total_contracts) as lost_from_conversion,\n  ROUND((CAST(total_contracts AS FLOAT) / NULLIF(total_demand, 0)) * 100, 2) as conversion_rate\nFROM demand_supply",
+      "explanation": "แยก Lost Sales เป็น 2 ประเภท: (1) Lost from Stock = คนที่อยากซื้อแต่ของหมด, (2) Lost from Conversion = คนที่ของมีแต่ไม่ซื้อ",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_registration",
+        "fact_contract",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "CTE",
+        "lost sales breakdown",
+        "root cause analysis"
+      ]
+    },
+    {
+      "id": 48,
+      "category": "demand_supply_analysis",
+      "question": "รุ่นไหนเสียโอกาสจาก Stock",
+      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(i.stock_qty, 0) as stock,\n  CASE \n    WHEN COALESCE(i.stock_qty, 0) < SUM(r.reg_count)\n    THEN SUM(r.reg_count) - COALESCE(i.stock_qty, 0)\n    ELSE 0\n  END as lost_from_stock\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN (\n  SELECT product_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name, i.stock_qty\nHAVING lost_from_stock > 0\nORDER BY lost_from_stock DESC\nLIMIT 10",
+      "explanation": "หารุ่นที่เสียโอกาสเพราะ stock ไม่พอ (demand > stock)",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_product",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "stock shortage",
+        "opportunity loss",
+        "reorder priority"
+      ]
+    },
+    {
+      "id": 49,
+      "category": "performance",
+      "question": "รุ่นไหนเสียโอกาสจาก Conversion",
+      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(SUM(c.contract_count), 0) as contracts,\n  COALESCE(i.stock_qty, 0) as stock,\n  (SUM(r.reg_count) - COALESCE(SUM(c.contract_count), 0)) as lost_from_conversion,\n  ROUND((CAST(COALESCE(SUM(c.contract_count), 0) AS FLOAT) / NULLIF(SUM(r.reg_count), 0)) * 100, 2) as conversion_rate\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN fact_contract c ON r.product_id = c.product_id\n  AND c.date_key BETWEEN 20251201 AND 20251231\nLEFT JOIN (\n  SELECT product_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name, i.stock_qty\nHAVING COALESCE(i.stock_qty, 0) >= SUM(r.reg_count) AND conversion_rate < 85\nORDER BY lost_from_conversion DESC\nLIMIT 10",
+      "explanation": "หารุ่นที่มี stock พอแต่ conversion rate ต่ำ (< 85%) = ปัญหาอยู่ที่ sales process ไม่ใช่ stock",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_product",
+        "fact_contract",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "low conversion",
+        "sales performance",
+        "stock available but low sales"
+      ]
+    },
+    {
+      "id": 50,
+      "category": "demand_supply_analysis",
+      "question": "รุ่นไหนควร Order เพิ่ม",
+      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(i.stock_qty, 0) as stock,\n  COALESCE(SUM(c.contract_count), 0) as contracts,\n  ROUND((CAST(COALESCE(SUM(c.contract_count), 0) AS FLOAT) / NULLIF(SUM(r.reg_count), 0)) * 100, 2) as conversion_rate,\n  (SUM(r.reg_count) - COALESCE(i.stock_qty, 0)) as stock_shortage\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN fact_contract c ON r.product_id = c.product_id\n  AND c.date_key BETWEEN 20251201 AND 20251231\nLEFT JOIN (\n  SELECT product_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name, i.stock_qty\nHAVING stock_shortage > 0 AND conversion_rate >= 80\nORDER BY stock_shortage DESC\nLIMIT 10",
+      "explanation": "หารุ่นที่ควร order เพิ่ม เงื่อนไข: (1) stock ไม่พอ (demand > stock) AND (2) conversion rate สูง (>= 80%)",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_product",
+        "fact_contract",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "reorder recommendation",
+        "high demand + low stock + high conversion"
+      ]
+    },
+    {
+      "id": 51,
+      "category": "demand_supply_analysis",
+      "question": "รุ่นไหนควรกระตุ้นยอดขาย",
+      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(i.stock_qty, 0) as stock,\n  COALESCE(SUM(c.contract_count), 0) as contracts,\n  ROUND((CAST(COALESCE(SUM(c.contract_count), 0) AS FLOAT) / NULLIF(SUM(r.reg_count), 0)) * 100, 2) as conversion_rate,\n  ROUND(CAST(COALESCE(i.stock_qty, 0) AS FLOAT) / NULLIF(SUM(r.reg_count), 0), 2) as stock_coverage\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN fact_contract c ON r.product_id = c.product_id\n  AND c.date_key BETWEEN 20251201 AND 20251231\nLEFT JOIN (\n  SELECT product_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory WHERE date_key <= 20251231)\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name, i.stock_qty\nHAVING stock_coverage >= 1.5 AND conversion_rate < 85\nORDER BY stock_coverage DESC\nLIMIT 10",
+      "explanation": "หารุ่นที่ควรกระตุ้นยอดขาย เงื่อนไข: (1) stock เกิน (>= 1.5x demand) AND (2) conversion rate ต่ำ (< 85%)",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_product",
+        "fact_contract",
+        "fact_inventory"
+      ],
+      "key_patterns": [
+        "promotion recommendation",
+        "high stock + low conversion"
+      ]
     }
   ],
   "patterns": {
@@ -1094,10 +1201,6 @@
       },
       {
         "type": "JOIN",
-        "example": "Demand vs Supply Ratio รายรุ่น"
-      },
-      {
-        "type": "JOIN",
         "example": "สาขาใดมีลูกค้ารอเยอะแต่สต็อคไม่พอ"
       },
       {
@@ -1143,6 +1246,34 @@
       {
         "type": "JOIN",
         "example": "ประสิทธิภาพการจับคู่ระหว่าง Demand และ Supply"
+      },
+      {
+        "type": "JOIN",
+        "example": "Stock Coverage รายรุ่น"
+      },
+      {
+        "type": "JOIN",
+        "example": "สาขาไหน Stock Coverage ต่ำ"
+      },
+      {
+        "type": "JOIN",
+        "example": "Lost Sales แยกตามสาเหตุ"
+      },
+      {
+        "type": "JOIN",
+        "example": "รุ่นไหนเสียโอกาสจาก Stock"
+      },
+      {
+        "type": "JOIN",
+        "example": "รุ่นไหนเสียโอกาสจาก Conversion"
+      },
+      {
+        "type": "JOIN",
+        "example": "รุ่นไหนควร Order เพิ่ม"
+      },
+      {
+        "type": "JOIN",
+        "example": "รุ่นไหนควรกระตุ้นยอดขาย"
       }
     ],
     "window_functions": [
@@ -1157,6 +1288,18 @@
       {
         "type": "WINDOW",
         "example": "สต็อคคงเหลือเทียบกับลูกค้ารอซื้อ"
+      },
+      {
+        "type": "WINDOW",
+        "example": "Stock Coverage รายรุ่น"
+      },
+      {
+        "type": "WINDOW",
+        "example": "สาขาไหน Stock Coverage ต่ำ"
+      },
+      {
+        "type": "WINDOW",
+        "example": "รุ่นไหนควรกระตุ้นยอดขาย"
       }
     ],
     "common_columns": {}
@@ -1183,15 +1326,15 @@
     "warehouse_only": "Use: WHERE branch_id = 'BR000'"
   },
   "metadata": {
-    "total_examples": 44,
-    "valid_examples": 44,
+    "total_examples": 50,
+    "valid_examples": 50,
     "failed_examples": 0,
     "categories": {
       "demand": 7,
       "supply": 6,
       "contracts": 7,
-      "demand_supply_analysis": 15,
-      "performance": 9
+      "demand_supply_analysis": 19,
+      "performance": 11
     }
   }
 }
