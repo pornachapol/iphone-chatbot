@@ -1,10 +1,10 @@
 {
   "version": "1.0",
-  "created_at": "2025-12-28T07:52:52.846632",
+  "created_at": "2025-12-28T08:54:19.013570",
   "description": "DSPy optimizer for iPhone Demand-Supply SQL generation",
   "schema": {
     "database": "iphone_demand_supply",
-    "generated_at": "2025-12-28T07:52:52.794609",
+    "generated_at": "2025-12-28T08:54:18.979972",
     "description": "Auto-generated schema from database",
     "tables": {
       "dim_branch": {
@@ -916,6 +916,74 @@
         "TOP 1 with aggregation",
         "always SELECT the value"
       ]
+    },
+    {
+      "id": 41,
+      "category": "contracts",
+      "question": "iPhone รุ่นใดทำสัญญาได้มากที่สุด พร้อมจำนวน",
+      "sql": "SELECT \n  p.model_name,\n  SUM(c.contract_count) as total_contracts\nFROM fact_contract c\nJOIN dim_product p ON c.product_id = p.product_id\nWHERE c.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name\nORDER BY total_contracts DESC\nLIMIT 1",
+      "explanation": "หารุ่นที่ทำสัญญาได้มากที่สุด โดย SELECT ทั้งชื่อรุ่นและจำนวนสัญญา",
+      "result_type": "single_row",
+      "tables_used": [
+        "fact_contract",
+        "dim_product"
+      ],
+      "key_patterns": [
+        "TOP 1 with contracts",
+        "always SELECT the value"
+      ]
+    },
+    {
+      "id": 42,
+      "category": "performance",
+      "question": "Conversion Rate: Registration → Contract",
+      "sql": "SELECT \n  ROUND((CAST(SUM(c.contract_count) AS FLOAT) / NULLIF(SUM(r.reg_count), 0)) * 100, 2) as conversion_rate\nFROM fact_registration r\nLEFT JOIN fact_contract c ON r.product_id = c.product_id \n  AND r.branch_id = c.branch_id\n  AND c.date_key BETWEEN 20251201 AND 20251231\nWHERE r.date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "คำนวณ conversion rate จาก registration ไป contract (รองรับ format → ใน question)",
+      "result_type": "percentage",
+      "tables_used": [
+        "fact_registration",
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "conversion rate",
+        "arrow notation",
+        "Registration → Contract"
+      ]
+    },
+    {
+      "id": 43,
+      "category": "performance",
+      "question": "Conversion Rate ของเดือนนี้",
+      "sql": "SELECT \n  ROUND((CAST(SUM(c.contract_count) AS FLOAT) / NULLIF(SUM(r.reg_count), 0)) * 100, 2) as conversion_rate\nFROM fact_registration r\nLEFT JOIN fact_contract c ON r.product_id = c.product_id \n  AND r.branch_id = c.branch_id\n  AND c.date_key BETWEEN 20251201 AND 20251231\nWHERE r.date_key BETWEEN 20251201 AND 20251231",
+      "explanation": "คำนวณ conversion rate (เหมือน ID 42 แต่ question แตกต่าง)",
+      "result_type": "percentage",
+      "tables_used": [
+        "fact_registration",
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "conversion rate",
+        "alternative phrasing"
+      ]
+    },
+    {
+      "id": 44,
+      "category": "demand_supply_analysis",
+      "question": "ประสิทธิภาพการจับคู่ระหว่าง Demand และ Supply",
+      "sql": "SELECT \n  p.model_name,\n  SUM(r.reg_count) as demand,\n  COALESCE(SUM(i.stock_qty), 0) as supply,\n  COALESCE(SUM(c.contract_count), 0) as contracts,\n  ROUND(\n    (CAST(LEAST(SUM(r.reg_count), COALESCE(SUM(i.stock_qty), 0)) AS FLOAT) \n     / NULLIF(SUM(r.reg_count), 0)) * 100, 2\n  ) as matching_efficiency_percent\nFROM fact_registration r\nJOIN dim_product p ON r.product_id = p.product_id\nLEFT JOIN (\n  SELECT product_id, SUM(stock_qty) as stock_qty\n  FROM fact_inventory\n  WHERE date_key = (SELECT MAX(date_key) FROM fact_inventory)\n  GROUP BY product_id\n) i ON r.product_id = i.product_id\nLEFT JOIN fact_contract c ON r.product_id = c.product_id\n  AND c.date_key BETWEEN 20251201 AND 20251231\nWHERE r.date_key BETWEEN 20251201 AND 20251231\nGROUP BY p.model_name\nORDER BY matching_efficiency_percent DESC",
+      "explanation": "วัดประสิทธิภาพการจับคู่โดยดูว่า demand ที่สามารถตอบสนองได้จริงคิดเป็นกี่ % (ใช้ LEAST function)",
+      "result_type": "multiple_rows",
+      "tables_used": [
+        "fact_registration",
+        "dim_product",
+        "fact_inventory",
+        "fact_contract"
+      ],
+      "key_patterns": [
+        "LEAST function",
+        "true matching efficiency",
+        "demand-supply matching"
+      ]
     }
   ],
   "patterns": {
@@ -1050,6 +1118,22 @@
       {
         "type": "JOIN",
         "example": "iPhone รุ่นใดมีลูกค้ารอทำสัญญามากที่สุด พร้อมจำนวน"
+      },
+      {
+        "type": "JOIN",
+        "example": "iPhone รุ่นใดทำสัญญาได้มากที่สุด พร้อมจำนวน"
+      },
+      {
+        "type": "JOIN",
+        "example": "Conversion Rate: Registration → Contract"
+      },
+      {
+        "type": "JOIN",
+        "example": "Conversion Rate ของเดือนนี้"
+      },
+      {
+        "type": "JOIN",
+        "example": "ประสิทธิภาพการจับคู่ระหว่าง Demand และ Supply"
       }
     ],
     "window_functions": [
@@ -1090,15 +1174,15 @@
     "warehouse_only": "Use: WHERE branch_id = 'BR000'"
   },
   "metadata": {
-    "total_examples": 40,
-    "valid_examples": 40,
+    "total_examples": 44,
+    "valid_examples": 44,
     "failed_examples": 0,
     "categories": {
       "demand": 7,
       "supply": 6,
-      "contracts": 6,
-      "demand_supply_analysis": 14,
-      "performance": 7
+      "contracts": 7,
+      "demand_supply_analysis": 15,
+      "performance": 9
     }
   }
 }
