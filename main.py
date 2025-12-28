@@ -45,6 +45,17 @@ gemini_model = None
 # Models
 # ==========================================
 
+class KeyMetric(BaseModel):
+    label: str
+    value: str
+    unit: str
+
+class StructuredAnalysis(BaseModel):
+    summary: str
+    key_metrics: List[KeyMetric]
+    details: Optional[List[str]] = None
+    insight: Optional[str] = None
+
 class QueryRequest(BaseModel):
     question: str
     include_sql: Optional[bool] = True
@@ -56,6 +67,7 @@ class QueryResponse(BaseModel):
     sql: Optional[str] = None
     data: Optional[List[Dict[str, Any]]] = None
     metadata: Optional[Dict[str, Any]] = None
+    structured: Optional[Dict[str, Any]] = None
 
 # ==========================================
 # Startup & Shutdown
@@ -103,8 +115,9 @@ async def startup_event():
         print("   Please set it: export GEMINI_API_KEY=your_key")
     else:
         genai.configure(api_key=gemini_api_key)
+        # Use Gemini 2.5 Flash - latest model with best performance
         gemini_model = genai.GenerativeModel('gemini-2.5-flash')
-        print("✅ Gemini configured")
+        print("✅ Gemini 2.5 Flash configured")
     
     print("✅ Server ready!")
 
@@ -208,11 +221,14 @@ The SQL must be valid DuckDB syntax.
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
 
-def format_response_with_gemini(question: str, data: List[Dict], sql: str) -> str:
+def format_response_with_gemini(question: str, data: List[Dict], sql: str) -> tuple[str, Optional[Dict]]:
     """
-    Format data into natural Thai response using Gemini
+    Format data into structured markdown response using Gemini
+    Returns: (formatted_markdown, structured_json)
     """
-    prompt = f"""You are a helpful business analyst assistant responding in Thai.
+    
+    # Prompt for structured JSON output
+    prompt = f"""Analyze this business data and respond in JSON format ONLY.
 
 USER QUESTION: {question}
 
@@ -221,23 +237,98 @@ SQL EXECUTED: {sql}
 QUERY RESULTS:
 {json.dumps(data, indent=2, ensure_ascii=False)}
 
-Please provide a concise, natural Thai language answer that:
-1. Directly answers the user's question
-2. Highlights key insights from the data
-3. Mentions important numbers/metrics
-4. Provides brief analysis if relevant
-5. Suggests action if needed (e.g., restock alerts)
+Return a valid JSON object with this EXACT structure:
+{{
+    "summary": "คำตอบสั้นๆ 1-2 ประโยค พร้อมตัวเลขสำคัญที่สุด",
+    "key_metrics": [
+        {{"label": "ชื่อตัวชี้วัด", "value": "ตัวเลข", "unit": "หน่วย"}},
+        {{"label": "ชื่อตัวชี้วัด", "value": "ตัวเลข", "unit": "หน่วย"}}
+    ],
+    "details": [
+        "รายละเอียดสำคัญข้อ 1 (สั้นๆ ไม่เกิน 1 บรรทัด)",
+        "รายละเอียดสำคัญข้อ 2 (สั้นๆ ไม่เกิน 1 บรรทัด)"
+    ],
+    "insight": "ข้อสังเกตหรือคำแนะนำสำคัญ 1 ประโยค"
+}}
 
-Keep the response conversational and business-friendly.
-Format numbers with commas for readability (e.g., 1,234).
-"""
+RULES:
+- summary: ตอบคำถามตรงประเด็น ไม่เกิน 2 ประโยค
+- key_metrics: 2-5 ตัวเลขสำคัญที่สุด (เรียงตามความสำคัญ)
+- details: 2-4 ข้อ แต่ละข้อสั้นๆ ไม่ซ้ำกับ summary
+- insight: ข้อสังเกต/แนวโน้ม/คำแนะนำ 1 ประโยค (ถ้าไม่มี ใส่ null)
+- ใช้ตัวเลขที่มี comma (เช่น 10,032 ไม่ใช่ 10032)
+- เขียนเป็นภาษาไทยที่เป็นทางการแต่เข้าใจง่าย
+- Return ONLY valid JSON, no markdown backticks, no extra text
+
+Example response:
+{{
+    "summary": "iPhone 17 มีลูกค้าลงทะเบียนรอทำสัญญาทั้งหมด 10,032 คน",
+    "key_metrics": [
+        {{"label": "iPhone 17 256GB Blue", "value": "10,032", "unit": "คน"}},
+        {{"label": "Stock พร้อมส่ง", "value": "152,985", "unit": "เครื่อง"}},
+        {{"label": "อัตราส่วน Stock/Demand", "value": "15.2", "unit": "เท่า"}}
+    ],
+    "details": [
+        "Stock มากกว่า Demand ประมาณ 15 เท่า",
+        "ไม่มีความเสี่ยงในการขาดแคลนสินค้า"
+    ],
+    "insight": "สามารถรองรับ Demand ได้เป็นอย่างดี แนะนำติดตาม Conversion Rate"
+}}
+
+Now analyze the data and return JSON:"""
 
     try:
         response = gemini_model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
+        response_text = response.text.strip()
+        
+        # Clean potential markdown formatting
+        response_text = response_text.replace('```json', '').replace('```', '').strip()
+        
+        # Parse JSON
+        structured_data = json.loads(response_text)
+        
+        # Validate structure
+        if not all(key in structured_data for key in ['summary', 'key_metrics']):
+            raise ValueError("Missing required keys")
+        
+        # Format as beautiful markdown
+        markdown_parts = []
+        
+        # Summary with emoji
+        markdown_parts.append(f"**📊 {structured_data['summary']}**")
+        
+        # Key Metrics
+        if structured_data.get('key_metrics'):
+            markdown_parts.append("\n**📈 ตัวเลขสำคัญ:**")
+            for metric in structured_data['key_metrics']:
+                markdown_parts.append(f"• **{metric['label']}:** {metric['value']} {metric['unit']}")
+        
+        # Details
+        if structured_data.get('details'):
+            markdown_parts.append("\n**📋 รายละเอียด:**")
+            for detail in structured_data['details']:
+                markdown_parts.append(f"• {detail}")
+        
+        # Insight
+        if structured_data.get('insight'):
+            markdown_parts.append(f"\n**💡 Insight:** {structured_data['insight']}")
+        
+        formatted_markdown = '\n'.join(markdown_parts)
+        
+        return formatted_markdown, structured_data
+        
+    except json.JSONDecodeError as e:
+        print(f"⚠️ JSON Parse Error: {e}")
+        print(f"Response: {response_text[:200]}...")
         # Fallback to simple formatting
-        return f"ผลลัพธ์: พบข้อมูล {len(data)} รายการ"
+        fallback = f"**📊 สรุป:** พบข้อมูล {len(data)} รายการ\n\n{json.dumps(data[:3], indent=2, ensure_ascii=False)}"
+        return fallback, None
+        
+    except Exception as e:
+        print(f"⚠️ Formatting Error: {e}")
+        # Fallback
+        fallback = f"**ผลลัพธ์:** พบข้อมูล {len(data)} รายการ"
+        return fallback, None
 
 # ==========================================
 # API Endpoints
@@ -285,19 +376,20 @@ async def query(request: QueryRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"SQL execution error: {str(e)}")
         
-        # 4. Format response
-        answer = format_response_with_gemini(request.question, data, sql)
+        # 4. Format response with structured output
+        formatted_answer, structured_data = format_response_with_gemini(request.question, data, sql)
         
         # 5. Prepare response
         response = QueryResponse(
             question=request.question,
-            answer=answer,
+            answer=formatted_answer,
             sql=sql if request.include_sql else None,
             data=data if request.include_data else None,
             metadata={
                 "row_count": len(data),
                 "columns": list(result_df.columns) if len(data) > 0 else []
-            }
+            },
+            structured=structured_data  # Add structured JSON
         )
         
         return response
