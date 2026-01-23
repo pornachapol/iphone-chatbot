@@ -42,6 +42,32 @@ optimizer = None
 gemini_model = None
 
 # ==========================================
+# Business Thresholds (ค่ามาตรฐานทางธุรกิจ)
+# ==========================================
+
+BUSINESS_THRESHOLDS = {
+    'conversion_rate': {
+        'excellent': 90,
+        'good': 85,
+        'acceptable': 80,
+        'poor': 80
+    },
+    'stock_coverage': {
+        'overstock': 1.5,
+        'optimal_max': 1.2,
+        'optimal_min': 0.8,
+        'shortage': 0.5
+    },
+    'shortage': {
+        'critical': 5000,
+        'high': 1000,
+        'medium': 500,
+        'low': 100
+    },
+    'avg_price': 40000
+}
+
+# ==========================================
 # Models
 # ==========================================
 
@@ -91,7 +117,7 @@ async def startup_event():
     
     # 2. Setup database (in-memory for cloud deployment)
     print("💾 Setting up in-memory database...")
-    con = duckdb.connect(':memory:')  # Use in-memory database
+    con = duckdb.connect(':memory:')
     
     # Load CSV files into memory
     print("📁 Loading data from CSVs...")
@@ -115,7 +141,6 @@ async def startup_event():
         print("   Please set it: export GEMINI_API_KEY=your_key")
     else:
         genai.configure(api_key=gemini_api_key)
-        # Use Gemini 2.5 Flash - latest model with best performance
         gemini_model = genai.GenerativeModel('gemini-2.5-flash')
         print("✅ Gemini 2.5 Flash configured")
     
@@ -135,41 +160,27 @@ async def shutdown_event():
 
 def clean_sql(sql_text: str) -> str:
     """Clean SQL from markdown and extra text"""
-    # Remove markdown code blocks
     sql_text = re.sub(r'```sql\n?', '', sql_text)
     sql_text = re.sub(r'```\n?', '', sql_text)
-    
-    # Remove common prefixes
     sql_text = re.sub(r'^(SQL:|Query:)\s*', '', sql_text, flags=re.IGNORECASE)
-    
-    # Strip whitespace
     sql_text = sql_text.strip()
-    
     return sql_text
 
 def validate_sql(sql: str) -> tuple[bool, str]:
-    """
-    Validate SQL query
-    Returns: (is_valid, error_message)
-    """
-    # Basic validation
+    """Validate SQL query"""
     sql_upper = sql.upper()
     
-    # Check for dangerous operations
     dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE']
     for keyword in dangerous_keywords:
         if keyword in sql_upper:
             return False, f"Dangerous operation detected: {keyword}"
     
-    # Must be SELECT query
     if not sql_upper.strip().startswith('SELECT'):
         return False, "Only SELECT queries are allowed"
     
-    # Check for valid table names
     valid_tables = ['dim_date', 'dim_branch', 'dim_product', 
                    'fact_registration', 'fact_contract', 'fact_inventory']
     
-    # Simple check - look for FROM/JOIN clauses
     has_valid_table = any(table in sql for table in valid_tables)
     if not has_valid_table:
         return False, "No valid table found in query"
@@ -177,13 +188,10 @@ def validate_sql(sql: str) -> tuple[bool, str]:
     return True, ""
 
 def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 15) -> list:
-    """
-    Find most relevant SQL examples based on the question
-    """
+    """Find most relevant SQL examples based on the question"""
     question_lower = question.lower()
     all_examples = optimizer['examples']
     
-    # Keyword mapping for different query types
     keywords_map = {
         'demand_high_stock_low': ['demand', 'stock', 'สูง', 'ต่ำ', 'gap', 'ช่องว่าง', 'ไม่พอ'],
         'branch_analysis': ['สาขา', 'branch', 'ร้าน', 'shop'],
@@ -199,7 +207,6 @@ def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 1
         'shortage': ['ขาด', 'shortage', 'ไม่พอ', 'not enough'],
     }
     
-    # Score each example
     scored_examples = []
     
     for ex in all_examples:
@@ -208,17 +215,14 @@ def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 1
         ex_category = ex.get('category', '')
         ex_patterns = ' '.join(ex.get('key_patterns', [])).lower()
         
-        # 1. Exact phrase match (highest score)
         if question_lower in ex_question or ex_question in question_lower:
             score += 100
         
-        # 2. Word overlap (medium score)
         question_words = set(question_lower.split())
         ex_words = set(ex_question.split())
         common_words = question_words & ex_words
         score += len(common_words) * 10
         
-        # 3. Keyword category match
         for category, keywords in keywords_map.items():
             question_has_keyword = any(kw in question_lower for kw in keywords)
             example_has_keyword = any(kw in ex_question or kw in ex_patterns for kw in keywords)
@@ -226,12 +230,10 @@ def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 1
             if question_has_keyword and example_has_keyword:
                 score += 30
         
-        # 4. Category bonus for demand_supply_analysis
         if 'demand_supply_analysis' in ex_category:
             if any(kw in question_lower for kw in ['demand', 'stock', 'supply', 'สต็อค', 'ดีมานด์']):
                 score += 20
         
-        # 5. Special patterns bonus
         if 'gap' in question_lower or 'ช่องว่าง' in question_lower or 'ไม่พอ' in question_lower:
             if 'gap analysis' in ex_patterns or 'shortage' in ex_patterns:
                 score += 50
@@ -240,28 +242,21 @@ def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 1
             if 'TOP 1 with value' in ex_patterns or 'include COUNT in SELECT' in ex_patterns:
                 score += 40
         
-        # 6. Bonus for newer examples (31-44) if they're cross-analysis
         if ex['id'] >= 31 and score > 0:
             score += 15
         
         scored_examples.append((score, ex))
     
-    # Sort by score (descending)
     scored_examples.sort(key=lambda x: x[0], reverse=True)
-    
-    # Get top examples
     relevant_examples = [ex for score, ex in scored_examples if score > 0][:max_examples]
     
-    # If we have less than 5 relevant examples, add some default cross-analysis ones
     if len(relevant_examples) < 5:
-        # Add examples 31-40 (cross-analysis examples)
         for ex in all_examples:
             if ex['id'] >= 31 and ex not in relevant_examples:
                 relevant_examples.append(ex)
                 if len(relevant_examples) >= 10:
                     break
     
-    # If still not enough, add some basic examples
     if len(relevant_examples) < 5:
         for ex in all_examples[:10]:
             if ex not in relevant_examples:
@@ -272,20 +267,13 @@ def find_relevant_examples(question: str, optimizer: dict, max_examples: int = 1
     return relevant_examples[:max_examples]
 
 def generate_sql_with_gemini(question: str, optimizer: dict) -> str:
-    """
-    Generate SQL using Gemini with relevant examples
-    """
-    # Get current date (for default time filters)
+    """Generate SQL using Gemini with relevant examples"""
     current_date = con.execute("SELECT MAX(date_key) FROM fact_inventory").fetchone()[0]
-    
-    # Find relevant examples
     relevant_examples = find_relevant_examples(question, optimizer, max_examples=15)
     
-    # Log which examples were selected (for debugging)
     example_ids = [ex['id'] for ex in relevant_examples]
     print(f"🔍 Selected examples for '{question}': {example_ids}")
     
-    # Create prompt
     prompt = f"""You are an expert SQL query generator for a DuckDB database.
 
 DATABASE SCHEMA:
@@ -330,113 +318,218 @@ The SQL must be valid DuckDB syntax.
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
 
-def format_response_with_gemini(question: str, data: List[Dict], sql: str) -> tuple[str, Optional[Dict]]:
+def analyze_business_context(question: str, data: List[Dict], sql: str) -> Dict:
     """
-    Format data into structured markdown response using Gemini
-    Returns: (formatted_markdown, structured_json)
+    Pre-analyze data to provide business context and actionable recommendations
     """
+    if not data:
+        return {
+            "query_type": "NO_DATA",
+            "context": "ไม่พบข้อมูลที่ตรงกับเงื่อนไข",
+            "recommendations": [],
+            "priority": "ต่ำ",
+            "timeline": "ไม่ต้องดำเนินการ"
+        }
     
-    # Prompt for structured JSON output
-    prompt = f"""Analyze this business data and respond in JSON format ONLY.
+    context = {
+        "query_type": "GENERAL",
+        "key_finding": None,
+        "recommendations": [],
+        "priority": "ปานกลาง",
+        "timeline": "1 สัปดาห์",
+        "financial_impact": None,
+        "next_steps": []
+    }
+    
+    first_row = data[0]
+    q_lower = question.lower()
+    
+    # ORDER RECOMMENDATION
+    if any(kw in q_lower for kw in ['order', 'สั่ง', 'เพิ่ม', 'ควร']):
+        context["query_type"] = "ORDER_RECOMMENDATION"
+        
+        if 'stock_shortage' in first_row and 'conversion_rate' in first_row:
+            shortage = float(first_row.get('stock_shortage', 0))
+            conversion = float(first_row.get('conversion_rate', 0))
+            model = first_row.get('model_name', 'รุ่นนี้')
+            demand = float(first_row.get('demand', 0))
+            
+            if shortage > 0 and conversion >= BUSINESS_THRESHOLDS['conversion_rate']['acceptable']:
+                if shortage >= BUSINESS_THRESHOLDS['shortage']['critical']:
+                    context["priority"] = "🔴 สูงมาก - URGENT"
+                    context["timeline"] = "24 ชั่วโมง"
+                elif shortage >= BUSINESS_THRESHOLDS['shortage']['high']:
+                    context["priority"] = "🟠 สูง"
+                    context["timeline"] = "2-3 วัน"
+                else:
+                    context["priority"] = "🟡 ปานกลาง"
+                    context["timeline"] = "1 สัปดาห์"
+                
+                shortage_percent = (shortage / demand * 100) if demand > 0 else 0
+                lost_sales_value = shortage * BUSINESS_THRESHOLDS['avg_price'] * (conversion / 100)
+                
+                context["key_finding"] = f"{model} มี shortage {shortage:,.0f} เครื่อง ({shortage_percent:.0f}% ของ demand)"
+                context["financial_impact"] = {
+                    "shortage_units": f"{shortage:,.0f} เครื่อง",
+                    "lost_sales_risk": f"฿{lost_sales_value:,.0f}",
+                    "note": f"มูลค่าที่อาจเสียหากไม่ดำเนินการภายใน {context['timeline']}"
+                }
+                
+                context["recommendations"] = [
+                    f"✅ ต้อง order {model} เพิ่ม {shortage:,.0f} เครื่อง",
+                    f"Priority: {context['priority']}",
+                    f"Timeline: {context['timeline']}",
+                    f"เหตุผล: Conversion {conversion:.1f}% ดี แต่ stock ขาด {shortage_percent:.0f}%"
+                ]
+                
+                context["next_steps"] = [
+                    "1. ตรวจสอบ supplier lead time",
+                    "2. Review budget approval",
+                    f"3. Confirm order: {shortage:,.0f} เครื่อง",
+                    "4. กำหนด delivery date",
+                    "5. แจ้ง Sales team"
+                ]
+    
+    # CONVERSION ANALYSIS
+    elif 'conversion' in q_lower:
+        context["query_type"] = "CONVERSION_ANALYSIS"
+        
+        if 'conversion_rate' in first_row:
+            conversion = float(first_row.get('conversion_rate', 0))
+            entity = first_row.get('model_name', first_row.get('branch_name', 'รายการนี้'))
+            
+            if conversion < BUSINESS_THRESHOLDS['conversion_rate']['acceptable']:
+                context["priority"] = "🔴 สูง"
+                context["timeline"] = "3-5 วัน"
+                gap = BUSINESS_THRESHOLDS['conversion_rate']['acceptable'] - conversion
+                
+                context["key_finding"] = f"{entity} conversion {conversion:.1f}% ต่ำกว่าเป้า"
+                context["recommendations"] = [
+                    f"⚠️ Conversion {conversion:.1f}% ต่ำกว่า 80% ({gap:.1f}% gap)",
+                    "ตรวจสอบ: ราคา/เงื่อนไข/Sales skill",
+                    "Target: ยกระดับให้ถึง 80%",
+                    f"Timeline: {context['timeline']}"
+                ]
+                
+                context["next_steps"] = [
+                    "1. วิเคราะห์สาเหตุ conversion ต่ำ",
+                    "2. Survey ลูกค้าที่ไม่ทำสัญญา",
+                    "3. Training Sales team",
+                    "4. ติดตามผลทุก 3 วัน"
+                ]
+    
+    # STOCK COVERAGE
+    elif 'coverage' in sql.lower() or ('stock' in q_lower and 'demand' in q_lower):
+        context["query_type"] = "STOCK_COVERAGE"
+        
+        if 'stock_coverage' in first_row:
+            coverage = float(first_row.get('stock_coverage', 0))
+            entity = first_row.get('model_name', 'รายการนี้')
+            
+            if coverage >= BUSINESS_THRESHOLDS['stock_coverage']['overstock']:
+                context["priority"] = "🟡 ปานกลาง"
+                context["recommendations"] = [
+                    f"⚠️ Stock Coverage {coverage:.1f}x (มากเกิน)",
+                    "พิจารณาทำ Promotion",
+                    "ระวัง Obsolescence risk"
+                ]
+            elif coverage <= BUSINESS_THRESHOLDS['stock_coverage']['shortage']:
+                context["priority"] = "🔴 สูงมาก"
+                context["recommendations"] = [
+                    f"🔴 Stock Coverage {coverage:.1f}x (ขาดมาก)",
+                    "Order เพิ่มทันที",
+                    "ติดต่อ supplier เร่งส่ง"
+                ]
+    
+    return context
+
+def format_response_with_gemini(question: str, data: List[Dict], sql: str) -> tuple[str, Optional[Dict]]:
+    """Format response with business context"""
+    
+    business_context = analyze_business_context(question, data, sql)
+    
+    prompt = f"""Analyze this data with business context and create actionable insights.
 
 USER QUESTION: {question}
+QUERY RESULTS: {json.dumps(data[:5], indent=2, ensure_ascii=False)}
 
-SQL EXECUTED: {sql}
+BUSINESS CONTEXT:
+{json.dumps(business_context, indent=2, ensure_ascii=False)}
 
-QUERY RESULTS:
-{json.dumps(data, indent=2, ensure_ascii=False)}
-
-Return a valid JSON object with this EXACT structure:
+Return JSON:
 {{
-    "summary": "คำตอบสั้นๆ 1-2 ประโยค พร้อมตัวเลขสำคัญที่สุด",
-    "key_metrics": [
-        {{"label": "ชื่อตัวชี้วัด", "value": "ตัวเลข", "unit": "หน่วย"}},
-        {{"label": "ชื่อตัวชี้วัด", "value": "ตัวเลข", "unit": "หน่วย"}}
-    ],
-    "details": [
-        "รายละเอียดสำคัญข้อ 1 (สั้นๆ ไม่เกิน 1 บรรทัด)",
-        "รายละเอียดสำคัญข้อ 2 (สั้นๆ ไม่เกิน 1 บรรทัด)"
-    ],
-    "insight": "ข้อสังเกตหรือคำแนะนำสำคัญ 1 ประโยค"
+    "summary": "คำตอบสั้นๆ พร้อมตัวเลข",
+    "key_metrics": [{{"label": "...", "value": "...", "unit": "..."}}],
+    "actionable_recommendation": {{
+        "action": "{business_context.get('recommendations', [''])[0] if business_context.get('recommendations') else 'ดูรายละเอียด'}",
+        "priority": "{business_context.get('priority', 'ปานกลาง')}",
+        "timeline": "{business_context.get('timeline', '1 สัปดาห์')}",
+        "reason": "เหตุผลสั้นๆ"
+    }},
+    "details": ["รายละเอียด..."],
+    "next_steps": {json.dumps(business_context.get('next_steps', ['ติดตาม']))}
 }}
 
-RULES:
-- summary: ตอบคำถามตรงประเด็น ไม่เกิน 2 ประโยค
-- key_metrics: 2-5 ตัวเลขสำคัญที่สุด (เรียงตามความสำคัญ)
-- details: 2-4 ข้อ แต่ละข้อสั้นๆ ไม่ซ้ำกับ summary
-- insight: ข้อสังเกต/แนวโน้ม/คำแนะนำ 1 ประโยค (ถ้าไม่มี ใส่ null)
-- ใช้ตัวเลขที่มี comma (เช่น 10,032 ไม่ใช่ 10032)
-- เขียนเป็นภาษาไทยที่เป็นทางการแต่เข้าใจง่าย
-- Return ONLY valid JSON, no markdown backticks, no extra text
-
-Example response:
-{{
-    "summary": "iPhone 17 มีลูกค้าลงทะเบียนรอทำสัญญาทั้งหมด 10,032 คน",
-    "key_metrics": [
-        {{"label": "iPhone 17 256GB Blue", "value": "10,032", "unit": "คน"}},
-        {{"label": "Stock พร้อมส่ง", "value": "152,985", "unit": "เครื่อง"}},
-        {{"label": "อัตราส่วน Stock/Demand", "value": "15.2", "unit": "เท่า"}}
-    ],
-    "details": [
-        "Stock มากกว่า Demand ประมาณ 15 เท่า",
-        "ไม่มีความเสี่ยงในการขาดแคลนสินค้า"
-    ],
-    "insight": "สามารถรองรับ Demand ได้เป็นอย่างดี แนะนำติดตาม Conversion Rate"
-}}
-
-Now analyze the data and return JSON:"""
+Return ONLY valid JSON, no markdown:"""
 
     try:
         response = gemini_model.generate_content(prompt)
-        response_text = response.text.strip()
-        
-        # Clean potential markdown formatting
-        response_text = response_text.replace('```json', '').replace('```', '').strip()
-        
-        # Parse JSON
+        response_text = response.text.strip().replace('```json', '').replace('```', '').strip()
         structured_data = json.loads(response_text)
         
-        # Validate structure
-        if not all(key in structured_data for key in ['summary', 'key_metrics']):
-            raise ValueError("Missing required keys")
+        if not all(key in structured_data for key in ['summary', 'key_metrics', 'actionable_recommendation']):
+            raise ValueError("Missing keys")
         
-        # Format as beautiful markdown
         markdown_parts = []
+        markdown_parts.append(f"**📊 {structured_data['summary']}**\n")
         
-        # Summary with emoji
-        markdown_parts.append(f"**📊 {structured_data['summary']}**")
-        
-        # Key Metrics
         if structured_data.get('key_metrics'):
-            markdown_parts.append("\n**📈 ตัวเลขสำคัญ:**")
+            markdown_parts.append("**📈 ตัวเลขสำคัญ:**")
             for metric in structured_data['key_metrics']:
                 markdown_parts.append(f"• **{metric['label']}:** {metric['value']} {metric['unit']}")
+            markdown_parts.append("")
         
-        # Details
+        if structured_data.get('actionable_recommendation'):
+            rec = structured_data['actionable_recommendation']
+            markdown_parts.append("**💡 คำแนะนำที่ใช้ได้จริง:**")
+            markdown_parts.append(f"• **Action:** {rec.get('action', 'ดูรายละเอียด')}")
+            markdown_parts.append(f"• **Priority:** {rec.get('priority', 'ปานกลาง')}")
+            markdown_parts.append(f"• **Timeline:** {rec.get('timeline', '1 สัปดาห์')}")
+            markdown_parts.append(f"• **เหตุผล:** {rec.get('reason', 'ดูข้อมูล')}")
+            markdown_parts.append("")
+        
         if structured_data.get('details'):
-            markdown_parts.append("\n**📋 รายละเอียด:**")
+            markdown_parts.append("**📋 รายละเอียด:**")
             for detail in structured_data['details']:
                 markdown_parts.append(f"• {detail}")
+            markdown_parts.append("")
         
-        # Insight
-        if structured_data.get('insight'):
-            markdown_parts.append(f"\n**💡 Insight:** {structured_data['insight']}")
+        if structured_data.get('next_steps'):
+            markdown_parts.append("**🎯 ขั้นตอนถัดไป:**")
+            for step in structured_data['next_steps']:
+                markdown_parts.append(step)
+            markdown_parts.append("")
+        
+        if business_context.get('financial_impact'):
+            fi = business_context['financial_impact']
+            markdown_parts.append("**💰 ผลกระทบทางการเงิน:**")
+            if 'shortage_units' in fi:
+                markdown_parts.append(f"• Shortage: {fi['shortage_units']}")
+            if 'lost_sales_risk' in fi:
+                markdown_parts.append(f"• Lost Sales Risk: {fi['lost_sales_risk']}")
+            if 'note' in fi:
+                markdown_parts.append(f"• {fi['note']}")
         
         formatted_markdown = '\n'.join(markdown_parts)
-        
         return formatted_markdown, structured_data
         
-    except json.JSONDecodeError as e:
-        print(f"⚠️ JSON Parse Error: {e}")
-        print(f"Response: {response_text[:200]}...")
-        # Fallback to simple formatting
-        fallback = f"**📊 สรุป:** พบข้อมูล {len(data)} รายการ\n\n{json.dumps(data[:3], indent=2, ensure_ascii=False)}"
-        return fallback, None
-        
     except Exception as e:
-        print(f"⚠️ Formatting Error: {e}")
-        # Fallback
-        fallback = f"**ผลลัพธ์:** พบข้อมูล {len(data)} รายการ"
+        print(f"⚠️ Error: {e}")
+        fallback = f"**📊 สรุป:** {business_context.get('key_finding', f'พบข้อมูล {len(data)} รายการ')}"
+        if business_context.get('recommendations'):
+            fallback += "\n\n**💡 คำแนะนำ:**"
+            for rec in business_context['recommendations'][:3]:
+                fallback += f"\n• {rec}"
         return fallback, None
 
 # ==========================================
@@ -445,51 +538,33 @@ Now analyze the data and return JSON:"""
 
 @app.get("/")
 async def root():
-    """Health check"""
     return {
         "status": "ok",
         "message": "iPhone Demand-Supply Chatbot API",
-        "version": "1.0.0",
-        "endpoints": {
-            "POST /query": "Submit natural language query",
-            "GET /schema": "Get database schema",
-            "GET /examples": "Get example questions",
-            "GET /stats": "Get database statistics"
-        }
+        "version": "1.0.0"
     }
 
 @app.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest):
-    """
-    Main endpoint: Convert natural language to SQL and execute
-    """
     if not gemini_model:
-        raise HTTPException(status_code=503, detail="Gemini API not configured")
+        raise HTTPException(status_code=503, detail="Gemini not configured")
     
     try:
-        # 1. Generate SQL
         print(f"🔍 Question: {request.question}")
         sql = generate_sql_with_gemini(request.question, optimizer)
-        print(f"📝 Generated SQL: {sql}")
+        print(f"📝 SQL: {sql}")
         
-        # 2. Validate SQL
         is_valid, error_msg = validate_sql(sql)
         if not is_valid:
             raise HTTPException(status_code=400, detail=f"Invalid SQL: {error_msg}")
         
-        # 3. Execute SQL
-        try:
-            result_df = con.execute(sql).fetchdf()
-            data = result_df.to_dict('records')
-            print(f"✅ Query executed: {len(data)} rows")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"SQL execution error: {str(e)}")
+        result_df = con.execute(sql).fetchdf()
+        data = result_df.to_dict('records')
+        print(f"✅ {len(data)} rows")
         
-        # 4. Format response with structured output
         formatted_answer, structured_data = format_response_with_gemini(request.question, data, sql)
         
-        # 5. Prepare response
-        response = QueryResponse(
+        return QueryResponse(
             question=request.question,
             answer=formatted_answer,
             sql=sql if request.include_sql else None,
@@ -498,19 +573,16 @@ async def query(request: QueryRequest):
                 "row_count": len(data),
                 "columns": list(result_df.columns) if len(data) > 0 else []
             },
-            structured=structured_data  # Add structured JSON
+            structured=structured_data
         )
-        
-        return response
         
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @app.get("/schema")
 async def get_schema():
-    """Get database schema"""
     return {
         "tables": optimizer['schema']['tables'],
         "business_glossary": optimizer['business_glossary']
@@ -518,7 +590,6 @@ async def get_schema():
 
 @app.get("/examples")
 async def get_examples():
-    """Get example questions"""
     examples_by_category = {}
     for example in optimizer['examples']:
         category = example['category']
@@ -537,25 +608,18 @@ async def get_examples():
 
 @app.get("/stats")
 async def get_stats():
-    """Get database statistics"""
     stats = {}
     
-    # Get row counts
     for table in ['dim_date', 'dim_branch', 'dim_product', 
                   'fact_registration', 'fact_contract', 'fact_inventory']:
         count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         stats[table] = {"row_count": count}
     
-    # Date range
     min_date = con.execute("SELECT MIN(date_key) FROM dim_date").fetchone()[0]
     max_date = con.execute("SELECT MAX(date_key) FROM dim_date").fetchone()[0]
     
-    stats['date_range'] = {
-        'min': min_date,
-        'max': max_date
-    }
+    stats['date_range'] = {'min': min_date, 'max': max_date}
     
-    # Business metrics
     total_registrations = con.execute("SELECT SUM(reg_count) FROM fact_registration").fetchone()[0]
     total_contracts = con.execute("SELECT SUM(contract_count) FROM fact_contract").fetchone()[0]
     total_revenue = con.execute("SELECT SUM(contract_value) FROM fact_contract").fetchone()[0]
@@ -568,10 +632,6 @@ async def get_stats():
     }
     
     return stats
-
-# ==========================================
-# Run Server
-# ==========================================
 
 if __name__ == "__main__":
     import uvicorn
